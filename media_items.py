@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import QTimer, Qt, pyqtSignal
 from PyQt5.QtWidgets import QListWidgetItem
 
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QIcon, QPixmap
 
 from PyQt5.QtCore import pyqtSignal
 
@@ -69,9 +69,46 @@ def sort_items_ascending():
 class Mainmenu(QWidget):
     pass
 
-class add_widget(QWidget):
-    def __init__(self):
+class update_widget(QWidget):
+    def __init__(self, main_window):
         super().__init__()
+        self.main_=main_window
+       
+        self.setWindowTitle("Update Item")
+        self.resize(400, 300)
+
+        self.layout=QVBoxLayout()
+
+        self.title_input=QLineEdit()
+        
+        self.type_input=QComboBox()
+
+        self.genre_input=QLineEdit()
+        
+        self.rating_input=QLineEdit()
+        
+        self.review_input=QTextEdit()
+
+        self.update_button=QPushButton("Update")
+
+        self.layout.addWidget(self.title_input)
+        self.layout.addWidget(self.type_input)  
+        self.layout.addWidget(self.genre_input)
+        self.layout.addWidget(self.rating_input)
+        self.layout.addWidget(self.review_input)
+        self.layout.addWidget(self.update_button)
+
+        self.setLayout(self.layout)
+
+        
+        self.update_button.clicked.connect( lambda : self.update_item_from_db(self.main_,self.title_input.text(),self.type_input.currentText(),self.genre_input.text(),self.rating_input.text(),self.review_input.toPlainText(),"2224-06-04") )
+
+
+class add_widget(QWidget):
+    def __init__(self, main_window):
+        super().__init__()
+        self.main_ = main_window
+
         self.setWindowTitle("Add Item")
         self.resize(400, 300)
 
@@ -109,23 +146,106 @@ class add_widget(QWidget):
 
 
     def add_item_to_db(self):
-        title = self.title_input.text()
-        type = self.type_input.currentText()
-        genre = self.genre_input.text()
-        rating = self.rating_input.text()
-        review = self.review_input.toPlainText()
-        date_added = time.strftime("%Y-%m-%d")
+        if self.title_input.text() and self.genre_input.text() and self.type_input.currentText() and self.rating_input.text() and self.review_input.toPlainText():
+            title = self.title_input.text()
+            type = self.type_input.currentText()
+            genre = self.genre_input.text()
+            rating = self.rating_input.text()
+            review = self.review_input.toPlainText()
+            date_added = time.strftime("%Y-%m-%d")
 
-        add_item(title, type, genre, rating, review, date_added)
-        print(view_items())
+            add_item(title, type, genre, rating, review, date_added)
 
-        self.hide()
-        ### add item succesfully
-        self.main_.show()
+        ###database.connection.commit()
+            print(view_items())
+
+            database.cursor.execute(
+                "UPDATE media SET type=(?), genre=(?), rating=(?), review=(?), date_added=(?) WHERE title=(?)",
+                (type, genre, rating, review, date_added, title)
+            )
+
+            fetchall = database.cursor.fetchall()
+            self.hide()
+    
+            load_data(self.main_)
+            self.main_.show()
+        else:
+            msg = QMessageBox()
+            msg.setWindowTitle("Incomplete input")
+            msg.setText("Please fill in all fields before adding an item.")
+            msg.setIcon(QMessageBox.Warning)
+            pixmap = QPixmap("images/warning.png")
+            msg.setWindowIcon(QIcon("images/blue-circle-icon-info-png-clipart.jpg"))
+            msg.exec_()
+        
+def delete_item_from_db(list_widget):
+    items_=list_widget.selectedItems()
+
+    if not items_:  
+        msg = QMessageBox()
+        msg.setWindowTitle("No selection")
+        msg.setText("Please select an item to delete.")
+        msg.setIcon(QMessageBox.Warning)
+        pixmap = QPixmap("images/warning.png")
+        msg.setWindowIcon(QIcon("images/blue-circle-icon-info-png-clipart.jpg"))
+        msg.exec_()
+        return
+    else:
+        for item in items_:
+            print(item.text())
+            database.cursor.execute("DELETE FROM media WHERE title=(?)", (item.text().split(" - ")[1],)) 
+
+        load_data(list_widget.parent())  # refresh the list after deletion
+
+def update_item_from_db(self,add_widget_):
+    if self.list_widget.selectedItems() is not None:
+        item=" - ".join(i.text() for i in self.list_widget.selectedItems())
+
+    if item is None:
+        msg = QMessageBox()
+        msg.setWindowTitle("No selection")
+        msg.setText("Please select an item to update.")
+        msg.setIcon(QMessageBox.Warning)
+        pixmap = QPixmap("images/warning.png")
+        msg.setWindowIcon(QIcon("images/blue-circle-icon-info-png-clipart.jpg"))
+        msg.exec_()
+    else:
+        print(item)
+        text=item
+
+        if item:
+            
+            
+            add_widget_.title_input.setText(text.split(" - ")[1])
+            
+            add_widget_.type_input.setCurrentText(text.split(" - ")[2])
+            add_widget_.genre_input.setText(text.split(" - ")[3])
+            add_widget_.rating_input.setText(text.split(" - ")[4])
+            add_widget_.review_input.setText(text.split(" - ")[5])
+
+            add_widget_.repaint()
+            self.list_widget.clearSelection() 
+            self.list_widget.setCurrentItem(None)
+            add_widget_.show()
+            item=None
+             # Clear selection after loading data into update form
+        else:
+            msg = QMessageBox()
+            msg.setWindowTitle("No selection")
+            msg.setText("Please select an item to update.")
+            msg.setIcon(QMessageBox.Warning)
+            pixmap = QPixmap("images/warning.png")
+            msg.setWindowIcon(QIcon("images/blue-circle-icon-info-png-clipart.jpg"))
+            msg.exec_()
+            ###self.hide()
 
 class Managebook(QWidget):
 
     emit_signal = pyqtSignal()
+
+    emit_signal_update = pyqtSignal()
+    
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Manage Books")
@@ -135,8 +255,6 @@ class Managebook(QWidget):
 
         ##top layout
         top_layout = QHBoxLayout()
-
-        ##top_layout.addWidget(QListWidget())
 
         self.description=QLabel("Manage your media library: Add, delete, or update items.\n")
 
@@ -158,10 +276,16 @@ class Managebook(QWidget):
 
         self.delete_button = QPushButton("Delete")
 
+        ###top_layout.self.delete_button.clicked.connect(delete_item_from_db)
+
         top_layout.addWidget(self.delete_button, alignment=Qt.AlignTop)
+
+        self.delete_button.clicked.connect(lambda: delete_item_from_db(self.list_widget))
 
         self.update_button = QPushButton("Update")
         top_layout.addWidget(self.update_button, alignment=Qt.AlignRight)
+        self.update_button.clicked.connect(self.emit_signal_update)
+
 
         top_layout.addWidget(self.list_widget)
 
@@ -179,6 +303,8 @@ class Managebook(QWidget):
         bottom_layout.addWidget(self.search_button)
         ##self.search_button.clicked.connect()
 
+
+
         ## assemble
 
         main_layout.addLayout(top_layout)
@@ -191,10 +317,21 @@ class Managebook(QWidget):
         rows=database.cursor.fetchall()
         for row in rows:
             self.list_widget.addItem(str(row[0])+" - "+str(row[1])+" - "+str(row[2])+" - "+str(row[3])+" - "+str(row[4])+" - "+str(row[5]))
+    
+    def some_button_clicked(self):
+        self.emit_signal.emit()
 
     
+def load_data(self):
+    self.list_widget.clear()  # important: avoid duplicates
 
+    database.cursor.execute("SELECT * FROM media")
+    rows = database.cursor.fetchall()
 
+    for row in rows:
+        self.list_widget.addItem(
+            f"{row[0]} - {row[1]} - {row[2]} - {row[3]} - {row[4]} - {row[5]}"
+        )
 
 class LibraryUi(QWidget):
     def __init__(self):
@@ -339,28 +476,27 @@ def main():
     print(view_items())
 
     app=QApplication(sys.argv)
-
-    window=LibraryUi()
-    add = add_widget()
-
-    ##star-up
+    
     main_=Managebook()
 
-    emit_signal = pyqtSignal()
+    add = add_widget(main_)
     
-    def handle_switch():
+    def handle_switch_add():
         main_.hide()
         add.show()
 
-    main_.emit_signal.connect(handle_switch)
+    def handle_switch_update():
+        
+        ###update.show()
+        update_item_from_db(main_,add)
+    
+
+    main_.emit_signal.connect(handle_switch_add)
+
+    main_.emit_signal_update.connect(handle_switch_update)
 
     main_.show()
     add.hide()
-    ##window.show()
-
-    
-        
-
 
     sys.exit(app.exec_())
 

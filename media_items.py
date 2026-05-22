@@ -86,6 +86,7 @@ class update_widget(QWidget):
         self.setWindowTitle("Update Item")
         self.resize(400, 300)
 
+        
         self.layout=QVBoxLayout()
 
         self.title_input=QLineEdit()
@@ -113,7 +114,7 @@ class update_widget(QWidget):
 
         self.setLayout(self.layout)
 
-        print(self.title_input.text())
+        id=0
         titlu_=""
         tip=""
         gen=""
@@ -142,24 +143,31 @@ class update_widget(QWidget):
                 print("No item selected")
                 return
 
-        self.update_button.clicked.connect( lambda: 
-                                           update_item_to_database(titlu_, 
-                                                                   tip, 
-                                                                   gen, 
-                                                                   rata, 
-                                                                   rev,
-                                                                   0
+        def update_true(id):
+            if title is not None:
+                title_in=titlu_
+
+                self.id=id
+                print(title_in)
+                
+                database.cursor.execute(
+                "UPDATE media SET title=(?),type=(?), genre=(?), rating=(?), review=(?) WHERE id=(?)",
+                (self.title_input.text(), self.type_input.currentText(), self.genre_input.text(), self.rating_input.text(), self.review_input.toPlainText(), self.id)
+                )
+                database.conn.commit()
+                
+                self.hide()
+                load_data(self.main_)
+                self.main_.show()
+
+
+
+        self.update_button.clicked.connect(
+                                           lambda: update_true(self.id)
                                                                    
-                                                                   )
+                                            
                                                                 )
         
-       
-
-
-        
-
-    
-
 class add_widget(QWidget):
     def __init__(self, main_window):
         super().__init__()
@@ -260,10 +268,8 @@ def update_item_from_db(self,update_widget_,item):
             msg.setWindowIcon(QIcon("images/blue-circle-icon-info-png-clipart.jpg"))
             msg.exec_()
             return
-        else:
-            
+        else:            
             text=item[0].text()
-            ###print(text.split(" - ")[1])
 
             if item:
             
@@ -284,18 +290,20 @@ def update_item_from_db(self,update_widget_,item):
                 print("lolololol")
 
                 update_widget_.titlu_=text.split(" - ")[1]
+                update_widget_.id=text.split(" - ")[0]
+                print(update_widget_.id)
+                print(update_widget_.titlu_)
+
                 update_widget_.tip=update_widget_.type_input
                 update_widget_.gen=update_widget_.genre_input
                 update_widget_.rata=update_widget_.rating_input
                 update_widget_.rev=update_widget_.review_input
 
-                titlu_=text.split(" - ")[1]
-                tip=update_widget_.type_input.currentText()
-                gen=update_widget_.genre_input.text()
-                rata=update_widget_.rating_input.text()
-                rev=update_widget_.review_input.toPlainText()
                 
+
              # Clear selection after loading data into update form
+
+                self.list_widget.clearSelection()
             else:
                 msg = QMessageBox()
                 msg.setWindowTitle("No selection")
@@ -330,8 +338,10 @@ class Managebook(QWidget):
         self.description.setWordWrap(True)
 
         self.list_widget = QListWidget()
-
         
+        self.reload_button = QPushButton("Reload")
+        top_layout.addWidget(self.reload_button, alignment=Qt.AlignTop)
+        self.reload_button.clicked.connect(lambda: load_data(self))
 
         self.add_button = QPushButton("Add")
         top_layout.addWidget(self.add_button, alignment=Qt.AlignTop)
@@ -362,6 +372,8 @@ class Managebook(QWidget):
         self.search_button = QPushButton("Search")
         bottom_layout.addWidget(self.search_button)
 
+        self.search_button.clicked.connect(self.search_books)
+
         ## assemble
 
         main_layout.addLayout(top_layout)
@@ -375,6 +387,19 @@ class Managebook(QWidget):
         for row in rows:
             self.list_widget.addItem(str(row[0])+" - "+str(row[1])+" - "+str(row[2])+" - "+str(row[3])+" - "+str(row[4])+" - "+str(row[5]))
     
+    def search_books(self):
+        query=self.label.text().split(":")[1].strip()  # Extract the search term after the colon and remove extra spaces
+        self.list_widget.clear()
+        
+        print(query)
+        database.cursor.execute("SELECT * FROM media WHERE title LIKE ?", (f"%{query}%",))
+        rows=database.cursor.fetchall()
+
+        for row in rows:
+            self.list_widget.clear()
+            self.list_widget.addItem(str(row[0])+" - "+str(row[1])+" - "+str(row[2])+" - "+str(row[3])+" - "+str(row[4])+" - "+str(row[5]))
+
+        
     def some_button_clicked(self):
         self.emit_signal.emit()
 
@@ -473,10 +498,11 @@ class LibraryUi(QWidget):
             msg.setText("No media items found matching your search.")
             msg.exec_()
             return
-
-        for row in rows:
-            self.results_list.addItem(row[0])
-            self.results_list.clicked.connect(lambda: self.show_details(row[0]))  # connect click event to show details function
+        else:
+            self.results_list.clear()
+            for row in rows:
+                self.results_list.addItem(row[0])
+                self.results_list.clicked.connect(lambda: self.show_details(row[0]))  # connect click event to show details function
 
     def show_details(self,item):
        ## title = item.data(Qt.UserRole)
@@ -517,9 +543,9 @@ class LibraryUi(QWidget):
 
 def main():
     
-    add_item("The Great Gatsby", "Book", "Classic", "5 stars", "A timeless masterpiece.", "2024-06-01")
-    add_item("Inception", "Movie", "Sci-Fi", "4.5 stars", "A mind-bending thriller.", "2024-06-02")
-    add_item("Inception", "Movie", "Classic", "5 stars", "A powerful social commentary.", "2024-06-03")
+    ###add_item("The Great Gatsby", "Book", "Classic", "5 stars", "A timeless masterpiece.", "2024-06-01")
+    ###add_item("Inception", "Movie", "Sci-Fi", "4.5 stars", "A mind-bending thriller.", "2024-06-02")
+    ###add_item("Inception", "Movie", "Classic", "5 stars", "A powerful social commentary.", "2024-06-03")
 
     print(view_items())
 
